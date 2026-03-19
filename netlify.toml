@@ -1,0 +1,9 @@
+[build]
+  base = "confession-app/frontend"
+  publish = "."
+
+[[redirects]]
+  from = "/api/*"
+  to = "https://confession-app-dx2k.onrender.com/api/:splat"
+  status = 200
+  force = true
