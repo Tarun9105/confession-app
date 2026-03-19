@@ -22,9 +22,8 @@ window.applyTheme = function(themeStr) {
 };
 
 window.cycleTheme = async function() {
-    if (userSettings.theme === 'system') userSettings.theme = 'light';
-    else if (userSettings.theme === 'light') userSettings.theme = 'dark';
-    else userSettings.theme = 'system';
+    // Simplify to 2-speed toggle: Light or Dark
+    userSettings.theme = (userSettings.theme === 'dark') ? 'light' : 'dark';
     
     window.applyTheme(userSettings.theme);
     window.updateSettingsUI();
@@ -105,7 +104,7 @@ function formatPassage(text, id, isBlurred) {
         const fullForm = escapeHTML(text);
         return `
             <p class="confession-text ${isBlurred ? 'blur-overlay select-none' : ''}" id="txt-${id}">
-                <span id="short-${id}">${shortForm} <button onclick="expandText('${id}')" class="text-blue-500 text-sm font-bold ml-1 active:scale-95 transition-transform">Read more</button></span>
+                <span id="short-${id}">${shortForm} <button onclick="event.stopPropagation(); expandText('${id}')" class="text-blue-500 text-sm font-bold ml-1 active:scale-95 transition-transform">Read more</button></span>
                 <span id="long-${id}" class="hidden">${fullForm}</span>
             </p>
         `;
@@ -177,7 +176,7 @@ window.renderFeed = function(targetEl = feedContainer, data = currentFeedData) {
             </div>
             <div class="relative">
                 ${formatPassage(post.text, post._id, post.blurred && userSettings.revealEnabled)}
-                ${(post.blurred && userSettings.revealEnabled) ? `<button onclick="reveal('${post._id}')" id="btn-${post._id}" class="absolute inset-0 flex items-center justify-center"><span class="bg-white px-4 py-2 rounded-full text-xs font-bold text-blue-600 shadow-sm">Tap to reveal</span></button>` : ''}
+                ${(post.blurred && userSettings.revealEnabled) ? `<button onclick="event.stopPropagation(); reveal('${post._id}')" id="btn-${post._id}" class="absolute inset-0 flex items-center justify-center"><span class="bg-white px-4 py-2 rounded-full text-xs font-bold text-blue-600 shadow-sm">Tap to reveal</span></button>` : ''}
             </div>
             <div class="flex items-center gap-6 mt-6">
                 <!-- Like -->
