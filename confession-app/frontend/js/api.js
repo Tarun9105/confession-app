@@ -75,11 +75,11 @@ const API = {
         });
         return res.json();
     },
-    async voteComment(postId, commentId, isLike) {
+    async voteComment(postId, commentId, isLike, deviceId) {
         return fetch(`${API_BASE}/${postId}/comments/${commentId}/vote`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ isLike })
+            body: JSON.stringify({ isLike, deviceId })
         });
     },
     async getSettings(deviceId) {

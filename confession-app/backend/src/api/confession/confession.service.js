@@ -142,17 +142,34 @@ export const addComment = async (confessionId, text) => {
   return formatConfession(confession);
 };
 
-export const voteComment = async (confessionId, commentId, isLike) => {
+export const voteComment = async (confessionId, commentId, isLike, deviceId) => {
+  if (!deviceId) throw new AppError('Device ID is required', 400);
+  const type = isLike ? 'like' : 'dislike';
+
   const confession = await Confession.findById(confessionId);
   if (!confession) throw new AppError('Confession not found', 404);
 
   const comment = confession.comments.id(commentId);
   if (!comment) throw new AppError('Comment not found', 404);
 
-  if (isLike) {
-    comment.likes += 1;
+  const existingVote = await Vote.findOne({ confessionId, commentId, deviceId });
+
+  if (existingVote) {
+    if (existingVote.voteType === type) {
+      // Toggle off
+      await Vote.deleteOne({ _id: existingVote._id });
+      if (isLike) comment.likes -= 1; else comment.dislikes -= 1;
+    } else {
+      // Change vote
+      existingVote.voteType = type;
+      await existingVote.save();
+      if (isLike) { comment.likes += 1; comment.dislikes -= 1; }
+      else { comment.likes -= 1; comment.dislikes += 1; }
+    }
   } else {
-    comment.dislikes += 1;
+    // New vote
+    await Vote.create({ confessionId, commentId, deviceId, voteType: type });
+    if (isLike) comment.likes += 1; else comment.dislikes += 1;
   }
   
   await confession.save();

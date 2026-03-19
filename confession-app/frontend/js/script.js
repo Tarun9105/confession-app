@@ -321,11 +321,11 @@ window.submitComment = async function() {
 
 window.likeComment = async function(pid, cid, isLike) {
     try {
-        await API.voteComment(pid, cid, isLike);
+        await API.voteComment(pid, cid, isLike, myDeviceId);
         const postIndex = currentFeedData.findIndex(p => p._id === pid);
         const post = currentFeedData[postIndex];
         const comm = post.comments.find(c => c._id === cid);
-        if (isLike) comm.likes++; else comm.dislikes++;
+        // Toggle logic optimization: local state will refresh via openComments
         window.openComments(pid);
     } catch(e){}
 };

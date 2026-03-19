@@ -41,8 +41,8 @@ export const addComment = catchAsync(async (req, res) => {
 
 export const voteComment = catchAsync(async (req, res) => {
   const { commentId } = req.params;
-  const { isLike } = req.body; // boolean
-  const confession = await confessionService.voteComment(req.params.id, commentId, isLike);
+  const { isLike, deviceId } = req.body;
+  const confession = await confessionService.voteComment(req.params.id, commentId, isLike, deviceId);
   res.status(200).json({ status: 'success', message: 'Voted successfully', data: confession });
 });
 

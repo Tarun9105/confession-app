@@ -6,6 +6,10 @@ const voteSchema = new mongoose.Schema({
     ref: 'Confession',
     required: true
   },
+  commentId: {
+    type: mongoose.Schema.Types.ObjectId,
+    required: false // Only set for comment votes
+  },
   deviceId: {
     type: String,
     required: true
@@ -17,8 +21,8 @@ const voteSchema = new mongoose.Schema({
   }
 }, { timestamps: true });
 
-// Ensure one device can only have one vote per confession
-voteSchema.index({ confessionId: 1, deviceId: 1 }, { unique: true });
+// Unique vote per device per (post or comment)
+voteSchema.index({ confessionId: 1, commentId: 1, deviceId: 1 }, { unique: true });
 
 const Vote = mongoose.model('Vote', voteSchema);
 export default Vote;
