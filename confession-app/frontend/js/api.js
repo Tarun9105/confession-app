@@ -2,14 +2,15 @@ const BASE_URL = 'http://localhost:5000/api';
 const API_BASE = `${BASE_URL}/confessions`;
 
 const API = {
-    async getFeed(type = '') {
+    async getFeed(category = '', page = 1) {
         try {
-            const res = await fetch(`${API_BASE}${type ? (type === 'trending' ? '/trending' : `?type=${type}`) : ''}`);
+            const endpoint = category === 'trending' ? '/trending' : `?type=${category}&page=${page}&limit=10`;
+            const res = await fetch(`${API_BASE}${endpoint}`);
             const data = await res.json();
             return data.data || [];
         } catch (e) {
             console.error('API Error:', e);
-            return [];
+            return null; // Return null so we can detect offline/failure
         }
     },
     async getTrending() {

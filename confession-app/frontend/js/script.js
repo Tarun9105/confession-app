@@ -2,6 +2,8 @@ let currentPostId = null;
 let currentFeedData = [];
 let currentCategory = ''; 
 let currentCommentSort = 'top';
+let currentPage = 1;
+let isFeedEnd = false;
 
 let myDeviceId = localStorage.getItem('deviceId');
 if (!myDeviceId) {
@@ -115,28 +117,62 @@ window.expandText = function(id) {
     document.getElementById(`long-${id}`).classList.remove('hidden');
 };
 
-window.loadFeed = async function(category = '') {
+window.loadFeed = async function(category = '', isLoadMore = false) {
+    const feed = document.getElementById('exploreFeed') || document.getElementById('feed');
+    if (!feed) return;
+
+    if (!isLoadMore) {
+        currentPage = 1;
+        isFeedEnd = false;
+        currentFeedData = [];
+        feed.innerHTML = '<div class="text-center py-20 text-gray-400 font-bold animate-pulse text-sm">Loading secrets...</div>';
+    }
+    
     currentCategory = category;
-    if (feedContainer) feedContainer.innerHTML = '<div class="text-center py-10 text-gray-400 font-bold">Loading insights...</div>';
+    const data = await API.getFeed(category, currentPage);
+
+    if (data === null) {
+        // Offline / Error fallback
+        const cached = localStorage.getItem('cachedFeed_' + category);
+        if (cached && !isLoadMore) {
+            currentFeedData = JSON.parse(cached);
+            window.renderFeed(feed, currentFeedData);
+            feed.insertAdjacentHTML('afterbegin', '<div class="bg-blue-50 text-blue-600 text-[10px] font-bold p-3 rounded-2xl mb-6 text-center">Offline Mode: Showing cached posts</div>');
+        } else if (!isLoadMore) {
+            feed.innerHTML = '<div class="text-center py-20 text-gray-400 font-bold">Failed to connect. Please check your internet.</div>';
+        }
+        return;
+    }
+
+    if (data.length < 10) isFeedEnd = true;
     
-    currentFeedData = category === 'trending' 
-                        ? await API.getTrending() 
-                        : await API.getFeed(category);
+    currentFeedData = isLoadMore ? [...currentFeedData, ...data] : data;
     
-    window.renderFeed();
+    // Cache the first page
+    if (currentPage === 1) {
+        localStorage.setItem('cachedFeed_' + category, JSON.stringify(data));
+    }
+
+    window.renderFeed(feed, currentFeedData);
+};
+
+window.loadMore = function() {
+    if (isFeedEnd) return;
+    currentPage++;
+    window.loadFeed(currentCategory, true);
 };
 
 window.renderFeed = function(targetEl = feedContainer, data = currentFeedData) {
     if (!targetEl) return;
     
     if (data.length === 0) {
-        targetEl.innerHTML = '<div class="text-center py-10 text-gray-400 font-bold">No posts found.</div>';
+        targetEl.innerHTML = '<div class="text-center py-20 text-gray-400 font-bold">No posts found.</div>';
         return;
     }
 
     targetEl.innerHTML = data.map(post => `
-        <div class="card card-${post.type || 'deep'} p-6 mb-5">
-            <div class="flex items-center gap-2 mb-3 text-[9px] font-black uppercase text-gray-400">
+        <div class="card p-6 mb-6 scale-sm hover:translate-y-[-2px] transition-all cursor-pointer" onclick="openComments('${post._id}')">
+            <div class="flex items-center gap-2 mb-4 text-[10px] font-bold uppercase tracking-widest text-gray-400">
                 <div class="w-1.5 h-1.5 rounded-full bg-gray-300"></div>${post.type || 'deep'}
             </div>
             <div class="relative">
@@ -145,23 +181,35 @@ window.renderFeed = function(targetEl = feedContainer, data = currentFeedData) {
             </div>
             <div class="flex items-center gap-6 mt-6">
                 <!-- Like -->
-                <button class="flex items-center gap-1.5 text-gray-400" onclick="like('${post._id}', this)">
-                    <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.7 0l-1.1 1-1-1a5.5 5.5 0 0 0-7.8 7.8l1.1 1 8.7 8.7 8.8-8.7 1-1a5.5 5.5 0 0 0 0-7.8z"/></svg>
-                    <span class="text-xs font-bold">${post.likes || 0}</span>
+                <button onclick="event.stopPropagation(); like('${post._id}', this)" class="flex items-center gap-2 group text-gray-400 font-bold">
+                    <div class="w-10 h-10 rounded-full flex items-center justify-center group-hover:bg-blue-50 transition-colors">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10v12M2 10.5a2 2 0 0 1 2-2h3v12H4a2 2 0 0 1-2-2v-8zM7 8.5c0-1.5 1-3 3-3s2.5 1.5 2.5 3v2h5a2 2 0 0 1 2 2v2a6 6 0 0 1-2 5h-7.5"/></svg>
+                    </div>
+                    <span class="text-xs group-hover:text-blue-600">${post.likes || 0}</span>
                 </button>
                 <!-- Dislike -->
-                <button class="flex items-center gap-1.5 text-gray-400" onclick="dislike('${post._id}', this)">
-                    <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/></svg>
-                    <span class="text-xs font-bold">${post.dislikes || 0}</span>
+                <button onclick="event.stopPropagation(); dislike('${post._id}', this)" class="flex items-center gap-2 group text-gray-400 font-bold">
+                    <div class="w-10 h-10 rounded-full flex items-center justify-center group-hover:bg-red-50 transition-colors">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="transform rotate-180 translate-y-[2px]"><path d="M7 10v12M2 10.5a2 2 0 0 1 2-2h3v12H4a2 2 0 0 1-2-2v-8zM7 8.5c0-1.5 1-3 3-3s2.5 1.5 2.5 3v2h5a2 2 0 0 1 2 2v2a6 6 0 0 1-2 5h-7.5"/></svg>
+                    </div>
+                    <span class="text-xs group-hover:text-red-600">${post.dislikes || 0}</span>
                 </button>
-                <!-- Comment -->
-                <button class="flex items-center gap-1.5 text-gray-400" onclick="openComments('${post._id}')">
-                    <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
-                    <span class="text-xs font-bold">${(post.comments || []).length}</span>
-                </button>
+                <!-- Comments -->
+                <div class="flex items-center gap-2 ml-auto text-gray-400 font-bold">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                    <span class="text-xs">${(post.comments || []).length}</span>
+                </div>
             </div>
         </div>
     `).join('');
+
+    if (!isFeedEnd && data.length >= 10) {
+        targetEl.insertAdjacentHTML('beforeend', `
+            <button id="loadMoreBtn" onclick="loadMore()" class="w-full py-4 mt-4 text-xs font-bold text-gray-400 hover:text-blue-600 transition-colors border-2 border-dashed border-gray-100 rounded-2xl">
+                Load More Discoveries...
+            </button>
+        `);
+    }
 };
 
 window.reveal = function(id) {
@@ -218,8 +266,14 @@ window.openComments = function(postId) {
                 <p class="text-sm text-gray-800">${escapeHTML(c.text)}</p>
             </div>
             <div class="flex items-center gap-3 shrink-0">
-                <button class="flex items-center gap-1 text-[10px] text-gray-400" onclick="likeComment('${postId}', '${c._id}', true)"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M7 10v12M2 10.5a2 2 0 0 1 2-2h3v12H4a2 2 0 0 1-2-2v-8zM7 8.5c0-1.5 1-3 3-3s2.5 1.5 2.5 3v2h5a2 2 0 0 1 2 2v2a6 6 0 0 1-2 5h-7.5"/></svg>${c.likes}</button>
-                <button class="flex items-center gap-1 text-[10px] text-gray-400" onclick="likeComment('${postId}', '${c._id}', false)"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 14V2m5 7.5a2 2 0 0 0-2-2h-3v12h3a2 2 0 0 0 2-2v-8zM17 15.5c0 1.5-1 3-3 3s-2.5-1.5-2.5-3v-2h-5a2 2 0 0 0-2 2v2a6 6 0 0 0 2 5h7.5"/></svg>${c.dislikes}</button>
+                <button onclick="likeComment('${postId}', '${c._id}', true)" class="flex items-center gap-1.5 text-gray-400 hover:text-blue-500 transition-colors">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10v12M2 10.5a2 2 0 0 1 2-2h3v12H4a2 2 0 0 1-2-2v-8zM7 8.5c0-1.5 1-3 3-3s2.5 1.5 2.5 3v2h5a2 2 0 0 1 2 2v2a6 6 0 0 1-2 5h-7.5"/></svg>
+                    <span class="text-[10px] font-bold">${c.likes || 0}</span>
+                </button>
+                <button onclick="likeComment('${postId}', '${c._id}', false)" class="flex items-center gap-1.5 text-gray-400 hover:text-red-500 transition-colors">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="transform rotate-180 translate-y-[2px]"><path d="M7 10v12M2 10.5a2 2 0 0 1 2-2h3v12H4a2 2 0 0 1-2-2v-8zM7 8.5c0-1.5 1-3 3-3s2.5 1.5 2.5 3v2h5a2 2 0 0 1 2 2v2a6 6 0 0 1-2 5h-7.5"/></svg>
+                    <span class="text-[10px] font-bold">${c.dislikes || 0}</span>
+                </button>
             </div>
         </div>
     `).join('') : '<p class="text-center py-10 text-gray-300 text-sm">No comments yet. Be the first!</p>';

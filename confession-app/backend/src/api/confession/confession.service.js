@@ -23,9 +23,13 @@ const formatConfession = (doc) => {
   return obj;
 };
 
-export const getAllConfessions = async (typeFilter) => {
+export const getAllConfessions = async (typeFilter, page = 1, limit = 10) => {
   const query = typeFilter ? { type: typeFilter } : {};
-  const confessions = await Confession.find(query).sort({ createdAt: -1 }).limit(100);
+  const skip = (page - 1) * limit;
+  const confessions = await Confession.find(query)
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit);
   return confessions.map(formatConfession);
 };
 

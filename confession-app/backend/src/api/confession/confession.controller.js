@@ -2,7 +2,9 @@ import * as confessionService from './confession.service.js';
 import catchAsync from '../../utils/catchAsync.js';
 
 export const getConfessions = catchAsync(async (req, res) => {
-  const confessions = await confessionService.getAllConfessions(req.query.type);
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
+  const confessions = await confessionService.getAllConfessions(req.query.type, page, limit);
   res.status(200).json({ status: 'success', data: confessions });
 });
 
