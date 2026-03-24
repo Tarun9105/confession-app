@@ -1,0 +1,5 @@
+.next
+out
+android
+node_modules
+.env.local

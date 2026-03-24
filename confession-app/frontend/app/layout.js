@@ -1,14 +1,14 @@
-import { Sora, Space_Grotesk } from "next/font/google";
+import { Manrope, Plus_Jakarta_Sans } from "next/font/google";
 import { PWASupport } from "@/components/pwa-support";
 import "./globals.css";
 
-const sora = Sora({
-  variable: "--font-sora",
+const manrope = Manrope({
+  variable: "--font-sans",
   subsets: ["latin"]
 });
 
-const spaceGrotesk = Space_Grotesk({
-  variable: "--font-space",
+const plusJakartaSans = Plus_Jakarta_Sans({
+  variable: "--font-display",
   subsets: ["latin"]
 });
 
@@ -20,7 +20,7 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body className={`${sora.variable} ${spaceGrotesk.variable}`}>
+      <body className={`${manrope.variable} ${plusJakartaSans.variable}`}>
         {children}
         <PWASupport />
       </body>

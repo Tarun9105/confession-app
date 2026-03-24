@@ -1,4 +1,7 @@
-const API_ROOT = "/api";
+const API_ROOT = (
+  process.env.NEXT_PUBLIC_API_BASE_URL ||
+  "http://localhost:5000/api"
+).replace(/\/$/, "");
 
 async function request(path, options = {}) {
   const response = await fetch(`${API_ROOT}${path}`, {
