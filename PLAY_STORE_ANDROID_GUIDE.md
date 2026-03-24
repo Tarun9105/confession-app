@@ -5,7 +5,7 @@ This project is set up to publish the Next.js frontend as an Android app using C
 ## 1. Decide the permanent app identity
 
 - App name: `Confessly`
-- Current package id: `com.confessly.app`
+- Current package id: `in.tarun.confessly`
 - Before first Play Store upload, change the package id if needed in:
   - `F:\night_project\confession-app\confession-app\frontend\capacitor.config.json`
   - `F:\night_project\confession-app\confession-app\frontend\android\app\build.gradle`

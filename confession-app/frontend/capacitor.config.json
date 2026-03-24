@@ -1,5 +1,5 @@
 {
-  "appId": "com.confessly.app",
+  "appId": "in.tarun.confessly",
   "appName": "Confessly",
   "webDir": "out",
   "bundledWebRuntime": false,
