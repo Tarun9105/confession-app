@@ -15,7 +15,16 @@ import {
   voteComment,
   votePost
 } from "@/lib/api";
-import { getBookmarks, getDeviceId, getMyPosts, saveMyPost, toggleBookmark } from "@/lib/storage";
+import {
+  DEFAULT_UI_SETTINGS,
+  getBookmarks,
+  getDeviceId,
+  getMyPosts,
+  getUiSettings,
+  saveMyPost,
+  saveUiSettings,
+  toggleBookmark
+} from "@/lib/storage";
 import {
   CATEGORY_OPTIONS,
   EMOTION_REACTIONS,
@@ -40,12 +49,16 @@ const REACTION_OPTIONS = [
   { label: "Chaotic", value: "funny" }
 ];
 
+const ACCENT_PRESETS = ["blue", "green", "rose", "orange"];
+const SURFACE_PRESETS = ["mist", "paper", "night", "mint"];
+const FONT_PRESETS = ["default", "rounded", "classic", "mono"];
+
 export function ConfessionExperience({ mode }) {
   const [bookmarks, setBookmarks] = useState([]);
   const [deviceId, setDeviceId] = useState("");
   const [settings, setSettings] = useState({ theme: "system", revealEnabled: true });
   const [postVotes, setPostVotes] = useState({});
-  const [gestureState, setGestureState] = useState({});
+  const [uiSettings, setUiSettings] = useState(DEFAULT_UI_SETTINGS);
   const [quoteIndex, setQuoteIndex] = useState(0);
   const [selectedCategory, setSelectedCategory] = useState(mode === "home" ? "" : "trending");
   const [posts, setPosts] = useState([]);
@@ -54,6 +67,7 @@ export function ConfessionExperience({ mode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [isComposeOpen, setIsComposeOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [composeText, setComposeText] = useState("");
   const [commentDraft, setCommentDraft] = useState("");
   const [activePostId, setActivePostId] = useState("");
@@ -118,10 +132,16 @@ export function ConfessionExperience({ mode }) {
     document.documentElement.dataset.theme = shouldUseDark ? "dark" : "light";
   }
 
+  function updateUiSettings(patch) {
+    const next = saveUiSettings({ ...uiSettings, ...patch });
+    setUiSettings(next);
+  }
+
   useEffect(() => {
     const nextDeviceId = getDeviceId();
     setDeviceId(nextDeviceId);
     setBookmarks(getBookmarks());
+    setUiSettings(getUiSettings());
 
     getSettings(nextDeviceId)
       .then((data) => {
@@ -132,6 +152,10 @@ export function ConfessionExperience({ mode }) {
         applyTheme("system");
       });
   }, []);
+
+  useEffect(() => {
+    applyUiSettings(uiSettings);
+  }, [uiSettings]);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -327,50 +351,6 @@ export function ConfessionExperience({ mode }) {
     setBookmarks(toggleBookmark(postId));
   }
 
-  function handleTouchStart(postId, event) {
-    const point = event.touches[0];
-    setGestureState((current) => ({
-      ...current,
-      [postId]: { startX: point.clientX, deltaX: 0 }
-    }));
-  }
-
-  function handleTouchMove(postId, event) {
-    const point = event.touches[0];
-    setGestureState((current) => {
-      const gesture = current[postId];
-      if (!gesture) {
-        return current;
-      }
-
-      return {
-        ...current,
-        [postId]: {
-          ...gesture,
-          deltaX: Math.max(-110, Math.min(110, point.clientX - gesture.startX))
-        }
-      };
-    });
-  }
-
-  function handleTouchEnd(postId) {
-    const gesture = gestureState[postId];
-    if (!gesture) {
-      return;
-    }
-
-    if (gesture.deltaX > 72) {
-      handleBookmark(postId);
-    } else if (gesture.deltaX < -72) {
-      setActivePostId(postId);
-    }
-
-    setGestureState((current) => ({
-      ...current,
-      [postId]: { startX: 0, deltaX: 0 }
-    }));
-  }
-
   async function handleReaction(postId, reactionType) {
     try {
       await reactToPost(postId, reactionType);
@@ -427,6 +407,9 @@ export function ConfessionExperience({ mode }) {
             </button>
             <button className="ghost-button" onClick={cycleTheme}>
               Theme: {settings.theme}
+            </button>
+            <button className="ghost-button" onClick={() => setIsSettingsOpen(true)}>
+              Settings
             </button>
           </div>
 
@@ -542,15 +525,7 @@ export function ConfessionExperience({ mode }) {
           ) : (
             visiblePosts.map((post) => (
               <article key={post._id} className="post-card">
-                <div
-                  className="swipe-hint"
-                  style={{
-                    transform: `translateX(${gestureState[post._id]?.deltaX || 0}px)`
-                  }}
-                  onTouchStart={(event) => handleTouchStart(post._id, event)}
-                  onTouchMove={(event) => handleTouchMove(post._id, event)}
-                  onTouchEnd={() => handleTouchEnd(post._id)}
-                >
+                <div className="swipe-hint">
                 <div className="post-meta">
                   <span className="post-type">{post.type || "deep"}</span>
                   <span>{post.timeAgo || "Just now"}</span>
@@ -686,6 +661,99 @@ export function ConfessionExperience({ mode }) {
         </div>
       ) : null}
 
+      {isSettingsOpen ? (
+        <div className="overlay" onClick={() => setIsSettingsOpen(false)}>
+          <section className="drawer-card settings-card" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-header">
+              <div>
+                <p className="eyebrow">Settings</p>
+                <h2>Customize the whole interface</h2>
+              </div>
+              <button className="close-button" onClick={() => setIsSettingsOpen(false)}>
+                Close
+              </button>
+            </div>
+
+            <div className="settings-group">
+              <span className="settings-label">Accent color</span>
+              <div className="settings-row">
+                {ACCENT_PRESETS.map((preset) => (
+                  <button
+                    key={preset}
+                    className={uiSettings.accent === preset ? "topic-chip active" : "topic-chip"}
+                    onClick={() => updateUiSettings({ accent: preset })}
+                  >
+                    {preset}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="settings-group">
+              <span className="settings-label">Surface color</span>
+              <div className="settings-row">
+                {SURFACE_PRESETS.map((preset) => (
+                  <button
+                    key={preset}
+                    className={uiSettings.surface === preset ? "topic-chip active" : "topic-chip"}
+                    onClick={() => updateUiSettings({ surface: preset })}
+                  >
+                    {preset}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="settings-group">
+              <span className="settings-label">Font family</span>
+              <div className="settings-row">
+                {FONT_PRESETS.map((preset) => (
+                  <button
+                    key={preset}
+                    className={uiSettings.font === preset ? "topic-chip active" : "topic-chip"}
+                    onClick={() => updateUiSettings({ font: preset })}
+                  >
+                    {preset}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <label className="slider-row">
+              <span className="settings-label">Text size</span>
+              <input
+                type="range"
+                min="0.9"
+                max="1.2"
+                step="0.05"
+                value={uiSettings.textScale}
+                onChange={(event) => updateUiSettings({ textScale: Number(event.target.value) })}
+              />
+              <strong>{uiSettings.textScale.toFixed(2)}x</strong>
+            </label>
+
+            <label className="slider-row">
+              <span className="settings-label">UI roundness</span>
+              <input
+                type="range"
+                min="0.8"
+                max="1.3"
+                step="0.05"
+                value={uiSettings.radius}
+                onChange={(event) => updateUiSettings({ radius: Number(event.target.value) })}
+              />
+              <strong>{uiSettings.radius.toFixed(2)}x</strong>
+            </label>
+
+            <div className="settings-actions">
+              <button className="secondary-button" onClick={() => updateUiSettings(DEFAULT_UI_SETTINGS)}>
+                Reset visuals
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
       {activePost ? (
         <div className="overlay" onClick={() => setActivePostId("")}>
           <section className="drawer-card" onClick={(event) => event.stopPropagation()}>
@@ -796,4 +864,40 @@ function applyOptimisticVote(post, postId, previousVote, nextVote) {
   );
 
   return { ...post, likes, dislikes };
+}
+
+function applyUiSettings(settings) {
+  if (typeof document === "undefined") {
+    return;
+  }
+
+  const root = document.documentElement;
+  const accentMap = {
+    blue: ["#0b57d0", "#1a73e8", "rgba(11, 87, 208, 0.1)"],
+    green: ["#137333", "#1e8e3e", "rgba(19, 115, 51, 0.1)"],
+    rose: ["#b3265d", "#d43f7a", "rgba(179, 38, 93, 0.12)"],
+    orange: ["#c26401", "#e37400", "rgba(194, 100, 1, 0.12)"]
+  };
+  const surfaceMap = {
+    mist: ["#f7f8fc", "#eef3fd", "#ffffff", "#f8faff", "#edf2fd"],
+    paper: ["#faf7f2", "#f3ede3", "#ffffff", "#fffaf2", "#f6efe2"],
+    night: ["#12151d", "#1b2030", "#1b1f27", "#20242d", "#252b36"],
+    mint: ["#f3fbf8", "#e3f4ed", "#ffffff", "#f4fcf8", "#e5f6ef"]
+  };
+
+  const [accent, accentStrong, accentSoft] = accentMap[settings.accent] || accentMap.blue;
+  const [bg, bgSecondary, surface1, surface2, surface3] = surfaceMap[settings.surface] || surfaceMap.mist;
+
+  root.style.setProperty("--accent", accent);
+  root.style.setProperty("--accent-strong", accentStrong);
+  root.style.setProperty("--accent-soft", accentSoft);
+  root.style.setProperty("--bg", bg);
+  root.style.setProperty("--bg-secondary", bgSecondary);
+  root.style.setProperty("--surface-1", surface1);
+  root.style.setProperty("--surface-2", surface2);
+  root.style.setProperty("--surface-3", surface3);
+  root.style.setProperty("--card-strong", surface1);
+  root.style.setProperty("--text-scale", String(settings.textScale));
+  root.style.setProperty("--radius-scale", String(settings.radius));
+  root.dataset.font = settings.font;
 }

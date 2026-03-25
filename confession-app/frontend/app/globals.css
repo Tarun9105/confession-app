@@ -13,6 +13,8 @@
   --surface-1: #ffffff;
   --surface-2: #f8faff;
   --surface-3: #edf2fd;
+  --text-scale: 1;
+  --radius-scale: 1;
 }
 
 :root[data-theme="dark"] {
@@ -34,6 +36,7 @@
 
 * {
   box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
 }
 
 html {
@@ -57,7 +60,6 @@ body {
     linear-gradient(180deg, #ffffff 0%, var(--bg) 100%);
   transition: background 180ms ease, color 180ms ease;
   padding-bottom: max(5.5rem, env(safe-area-inset-bottom));
-  touch-action: pan-y;
 }
 
 :root[data-theme="dark"] body {
@@ -73,8 +75,24 @@ textarea {
   font: inherit;
 }
 
-button {
+button,
+a {
   cursor: pointer;
+  outline: none;
+}
+
+button:focus,
+a:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .shell {
@@ -82,7 +100,6 @@ button {
   min-height: 100vh;
   overflow-x: hidden;
   overscroll-behavior-x: none;
-  overscroll-behavior-y: none;
 }
 
 .ambient {
@@ -147,7 +164,7 @@ button {
 
 .hero-card {
   padding: 2rem;
-  border-radius: 2rem;
+  border-radius: calc(2rem * var(--radius-scale));
   position: relative;
   overflow: hidden;
   background:
@@ -339,7 +356,7 @@ h2 {
 
 .metric-card {
   padding: 1rem 1.2rem;
-  border-radius: 1.5rem;
+  border-radius: calc(1.5rem * var(--radius-scale));
   background: linear-gradient(180deg, var(--surface-1), var(--surface-2));
 }
 
@@ -369,7 +386,7 @@ h2 {
 
 .tab-link {
   padding: 0.9rem 1.15rem;
-  border-radius: 999px;
+  border-radius: calc(999px * var(--radius-scale));
   text-decoration: none;
   color: var(--muted);
   border: 1px solid var(--line);
@@ -385,7 +402,7 @@ h2 {
 }
 
 .panel {
-  border-radius: 1.75rem;
+  border-radius: calc(1.75rem * var(--radius-scale));
   padding: 1.4rem;
 }
 
@@ -433,7 +450,7 @@ h2 {
 
 .post-card {
   padding: 1.35rem;
-  border-radius: 1.7rem;
+  border-radius: calc(1.7rem * var(--radius-scale));
   display: grid;
   gap: 1rem;
   overflow: hidden;
@@ -443,9 +460,6 @@ h2 {
 .swipe-hint {
   display: grid;
   gap: 1rem;
-  transition: transform 180ms ease;
-  touch-action: pan-y;
-  will-change: transform;
 }
 
 .post-meta {
@@ -491,7 +505,7 @@ h2 {
 }
 
 .mini-action {
-  border-radius: 999px;
+  border-radius: calc(999px * var(--radius-scale));
   padding: 0.65rem 0.9rem;
 }
 
@@ -506,7 +520,7 @@ h2 {
 
 .bookmark-card {
   text-align: left;
-  border-radius: 1.35rem;
+  border-radius: calc(1.35rem * var(--radius-scale));
   padding: 1rem;
 }
 
@@ -522,7 +536,7 @@ h2 {
 
 .empty-state {
   padding: 2rem;
-  border-radius: 1.8rem;
+  border-radius: calc(1.8rem * var(--radius-scale));
   text-align: center;
 }
 
@@ -542,7 +556,7 @@ h2 {
   width: 3.8rem;
   height: 3.8rem;
   border: 0;
-  border-radius: 1.4rem;
+  border-radius: calc(1.4rem * var(--radius-scale));
   background: linear-gradient(135deg, var(--accent), var(--accent-strong));
   color: #ffffff;
   font-size: 2rem;
@@ -562,7 +576,7 @@ h2 {
 .modal-card,
 .drawer-card {
   width: min(760px, 100%);
-  border-radius: 2rem;
+  border-radius: calc(2rem * var(--radius-scale));
   background: var(--card-strong);
   padding: 1.4rem;
 }
@@ -603,7 +617,7 @@ h2 {
 
 .comment-card {
   padding: 1rem;
-  border-radius: 1.3rem;
+  border-radius: calc(1.3rem * var(--radius-scale));
 }
 
 .comment-footer {
@@ -655,7 +669,7 @@ h2 {
   padding: 0.75rem;
   padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
   border: 1px solid var(--line);
-  border-radius: 1.8rem;
+  border-radius: calc(1.8rem * var(--radius-scale));
   background: color-mix(in srgb, var(--surface-1) 88%, transparent);
   backdrop-filter: blur(22px);
   -webkit-backdrop-filter: blur(22px);
@@ -672,8 +686,94 @@ h2 {
   text-align: center;
   text-decoration: none;
   color: var(--muted);
-  border-radius: 1.2rem;
+  border-radius: calc(1.2rem * var(--radius-scale));
   padding: 0.85rem 0.7rem;
+}
+
+.settings-card {
+  max-height: min(86vh, 900px);
+  overflow: auto;
+}
+
+.settings-group,
+.settings-actions {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.settings-group + .settings-group,
+.slider-row,
+.settings-actions {
+  margin-top: 1rem;
+}
+
+.settings-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.settings-label {
+  color: var(--muted);
+  font-size: calc(0.94rem * var(--text-scale));
+}
+
+.slider-row {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.slider-row input {
+  width: 100%;
+}
+
+:root[data-font="default"] body {
+  font-family: var(--font-sans), sans-serif;
+}
+
+:root[data-font="default"] h1,
+:root[data-font="default"] h2,
+:root[data-font="default"] .metric-card strong {
+  font-family: var(--font-display), sans-serif;
+}
+
+:root[data-font="rounded"] body,
+:root[data-font="rounded"] h1,
+:root[data-font="rounded"] h2,
+:root[data-font="rounded"] .metric-card strong {
+  font-family: "Trebuchet MS", "Avenir Next", sans-serif;
+}
+
+:root[data-font="classic"] body,
+:root[data-font="classic"] h1,
+:root[data-font="classic"] h2,
+:root[data-font="classic"] .metric-card strong {
+  font-family: Georgia, "Times New Roman", serif;
+}
+
+:root[data-font="mono"] body,
+:root[data-font="mono"] h1,
+:root[data-font="mono"] h2,
+:root[data-font="mono"] .metric-card strong {
+  font-family: "Courier New", monospace;
+}
+
+body,
+.hero-copy,
+.post-text,
+.comment-card p,
+.bookmark-card p,
+.settings-label,
+.topic-chip,
+.stat-button,
+.mini-action,
+.primary-button,
+.secondary-button,
+.ghost-button,
+.close-button,
+.bottom-link,
+.tab-link {
+  font-size: calc(1rem * var(--text-scale));
 }
 
 .bottom-link.active {

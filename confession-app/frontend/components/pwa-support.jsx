@@ -1,11 +1,16 @@
 "use client";
 
+import { Capacitor } from "@capacitor/core";
 import { useEffect, useState } from "react";
 
 export function PWASupport() {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
 
   useEffect(() => {
+    if (Capacitor.isNativePlatform()) {
+      return;
+    }
+
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("/sw.js").catch(() => {});
     }

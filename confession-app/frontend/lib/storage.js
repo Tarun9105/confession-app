@@ -1,6 +1,15 @@
 export const MY_POSTS_KEY = "myConfessions";
 export const DEVICE_ID_KEY = "deviceId";
 export const BOOKMARKS_KEY = "bookmarkedConfessions";
+export const UI_SETTINGS_KEY = "confesslyUiSettings";
+
+export const DEFAULT_UI_SETTINGS = {
+  accent: "blue",
+  surface: "mist",
+  font: "default",
+  textScale: 1,
+  radius: 1
+};
 
 export function getDeviceId() {
   if (typeof window === "undefined") {
@@ -58,5 +67,30 @@ export function toggleBookmark(postId) {
     : [postId, ...existing];
 
   window.localStorage.setItem(BOOKMARKS_KEY, JSON.stringify(next));
+  return next;
+}
+
+export function getUiSettings() {
+  if (typeof window === "undefined") {
+    return DEFAULT_UI_SETTINGS;
+  }
+
+  try {
+    return {
+      ...DEFAULT_UI_SETTINGS,
+      ...JSON.parse(window.localStorage.getItem(UI_SETTINGS_KEY) || "{}")
+    };
+  } catch {
+    return DEFAULT_UI_SETTINGS;
+  }
+}
+
+export function saveUiSettings(settings) {
+  if (typeof window === "undefined") {
+    return settings;
+  }
+
+  const next = { ...DEFAULT_UI_SETTINGS, ...settings };
+  window.localStorage.setItem(UI_SETTINGS_KEY, JSON.stringify(next));
   return next;
 }
