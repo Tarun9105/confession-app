@@ -55,6 +55,7 @@ export function ConfessionExperience({ mode }) {
   const [uiSettings, setUiSettings] = useState(getUiSettings());
   const [postVotes, setPostVotes] = useState({});
   const [quoteIndex, setQuoteIndex] = useState(0);
+  const [showExpandedHero, setShowExpandedHero] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState(mode === "home" ? "" : "trending");
   const [posts, setPosts] = useState([]);
   const [page, setPage] = useState(1);
@@ -144,6 +145,7 @@ export function ConfessionExperience({ mode }) {
     setDeviceId(nextDeviceId);
     setBookmarks(getBookmarks());
     setUiSettings(nextUi);
+    setShowExpandedHero(window.localStorage.getItem("confesslyHeroSeen") !== "true");
 
     getSettings(nextDeviceId)
       .then((data) => {
@@ -188,6 +190,19 @@ export function ConfessionExperience({ mode }) {
   useEffect(() => {
     applyUiSettings(uiSettings, resolveTheme(settings.theme));
   }, [settings.theme, uiSettings]);
+
+  useEffect(() => {
+    if (showExpandedHero) {
+      const timer = window.setTimeout(() => {
+        setShowExpandedHero(false);
+        window.localStorage.setItem("confesslyHeroSeen", "true");
+      }, 2400);
+
+      return () => window.clearTimeout(timer);
+    }
+
+    return undefined;
+  }, [showExpandedHero]);
 
   useEffect(() => {
     if (!deviceId) {
@@ -415,7 +430,7 @@ export function ConfessionExperience({ mode }) {
       <div className="ambient ambient-right" />
 
       <main className="frame">
-        <section className="hero-card">
+        <section className={showExpandedHero ? "hero-card" : "hero-card hero-card-compact"}>
           <div className="hero-header">
             <div className="hero-topline">
               <span className="brand-mark">C</span>
@@ -448,13 +463,17 @@ export function ConfessionExperience({ mode }) {
             </Link>
           </div>
 
-          <div className="metrics-grid">
-            <StatCard label="Confessions" value={formatCompactNumber(metrics.confessions)} />
-            <StatCard label="Replies" value={formatCompactNumber(metrics.replies)} />
-            <StatCard label="Pulse" value={formatCompactNumber(metrics.pulse)} />
-          </div>
+          {showExpandedHero ? (
+            <>
+              <div className="metrics-grid">
+                <StatCard label="Confessions" value={formatCompactNumber(metrics.confessions)} />
+                <StatCard label="Replies" value={formatCompactNumber(metrics.replies)} />
+                <StatCard label="Pulse" value={formatCompactNumber(metrics.pulse)} />
+              </div>
 
-          <p className="quote-line">{QUOTES[quoteIndex]}</p>
+              <p className="quote-line">{QUOTES[quoteIndex]}</p>
+            </>
+          ) : null}
         </section>
 
         <nav className="tab-nav desktop-nav">
@@ -569,32 +588,37 @@ export function ConfessionExperience({ mode }) {
                   </p>
 
                   <div className="post-stats">
-                    <button className="stat-button" onClick={() => handleVote(post._id, "like")}>
-                      Appreciate {formatCompactNumber(post.likes || 0)}
+                    <button className="stat-button icon-only" aria-label="Like post" onClick={() => handleVote(post._id, "like")}>
+                      <ActionIcon type="like" />
+                      <span>{formatCompactNumber(post.likes || 0)}</span>
                     </button>
-                    <button className="stat-button" onClick={() => handleVote(post._id, "dislike")}>
-                      Skip {formatCompactNumber(post.dislikes || 0)}
+                    <button className="stat-button icon-only" aria-label="Dislike post" onClick={() => handleVote(post._id, "dislike")}>
+                      <ActionIcon type="dislike" />
+                      <span>{formatCompactNumber(post.dislikes || 0)}</span>
                     </button>
-                    <button className="stat-button accent" onClick={() => setActivePostId(post._id)}>
-                      Discuss {formatCompactNumber(post.comments?.length || 0)}
+                    <button className="stat-button accent icon-only" aria-label="Open discussion" onClick={() => setActivePostId(post._id)}>
+                      <ActionIcon type="comment" />
+                      <span>{formatCompactNumber(post.comments?.length || 0)}</span>
                     </button>
                   </div>
 
                   <div className="post-actions">
-                    <button className="mini-action" onClick={() => handleBookmark(post._id)}>
-                      {bookmarks.includes(post._id) ? "Saved" : "Save"}
+                    <button className="mini-action icon-only" aria-label="Save post" onClick={() => handleBookmark(post._id)}>
+                      <ActionIcon type={bookmarks.includes(post._id) ? "saved" : "save"} />
                     </button>
                     {EMOTION_REACTIONS.map((reaction) => (
                       <button
                         key={reaction.value}
-                        className="mini-action"
+                        className="mini-action icon-only"
+                        aria-label={`React ${reaction.label}`}
                         onClick={() => handleReaction(post._id, reaction.value)}
                       >
-                        {reaction.label} {formatCompactNumber(post.reactions?.[reaction.value] || 0)}
+                        <ActionIcon type={reaction.value} />
+                        <span>{formatCompactNumber(post.reactions?.[reaction.value] || 0)}</span>
                       </button>
                     ))}
-                    <button className="mini-action subtle" onClick={() => handleReport(post._id)}>
-                      Report
+                    <button className="mini-action subtle icon-only" aria-label="Report post" onClick={() => handleReport(post._id)}>
+                      <ActionIcon type="report" />
                     </button>
                   </div>
                 </div>
@@ -641,7 +665,19 @@ export function ConfessionExperience({ mode }) {
       </button>
 
       <nav className={navHidden ? "bottom-nav hidden" : "bottom-nav"}>
-        {NAV_ITEMS.map((item) => (
+        {NAV_ITEMS.slice(0, 2).map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            className={modePath(mode) === item.href ? "bottom-link active" : "bottom-link"}
+          >
+            <span>{item.label}</span>
+          </Link>
+        ))}
+        <button className="bottom-compose" aria-label="Create confession" onClick={() => setIsComposeOpen(true)}>
+          +
+        </button>
+        {NAV_ITEMS.slice(2).map((item) => (
           <Link
             key={item.href}
             href={item.href}
@@ -822,4 +858,31 @@ function GearIcon({ icon }) {
       <path d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a1 1 0 0 1 0 1.4l-1.2 1.2a1 1 0 0 1-1.4 0l-.1-.1a1 1 0 0 0-1.1-.2a1 1 0 0 0-.6.9V20a1 1 0 0 1-1 1h-1.8a1 1 0 0 1-1-1v-.2a1 1 0 0 0-.6-.9a1 1 0 0 0-1.1.2l-.1.1a1 1 0 0 1-1.4 0l-1.2-1.2a1 1 0 0 1 0-1.4l.1-.1a1 1 0 0 0 .2-1.1a1 1 0 0 0-.9-.6H4a1 1 0 0 1-1-1v-1.8a1 1 0 0 1 1-1h.2a1 1 0 0 0 .9-.6a1 1 0 0 0-.2-1.1l-.1-.1a1 1 0 0 1 0-1.4l1.2-1.2a1 1 0 0 1 1.4 0l.1.1a1 1 0 0 0 1.1.2a1 1 0 0 0 .6-.9V4a1 1 0 0 1 1-1h1.8a1 1 0 0 1 1 1v.2a1 1 0 0 0 .6.9a1 1 0 0 0 1.1-.2l.1-.1a1 1 0 0 1 1.4 0l1.2 1.2a1 1 0 0 1 0 1.4l-.1.1a1 1 0 0 0-.2 1.1a1 1 0 0 0 .9.6H20a1 1 0 0 1 1 1v1.8a1 1 0 0 1-1 1h-.2a1 1 0 0 0-.9.6Z" />
     </svg>
   );
+}
+
+function ActionIcon({ type }) {
+  const common = { width: 16, height: 16, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2 };
+
+  if (type === "like") {
+    return <svg {...common}><path d="M7 10v10M3 11h4v9H4a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1Z" /><path d="M7 20h7.2a2 2 0 0 0 1.9-1.4l1.7-5.6A2 2 0 0 0 16 10h-3V6.8A1.8 1.8 0 0 0 11.2 5L7 10Z" /></svg>;
+  }
+  if (type === "dislike") {
+    return <svg {...common}><path d="M7 4v10M3 5h4v9H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z" /><path d="M7 4h7.2a2 2 0 0 1 1.9 1.4l1.7 5.6A2 2 0 0 1 16 14h-3v3.2A1.8 1.8 0 0 1 11.2 19L7 14Z" /></svg>;
+  }
+  if (type === "comment") {
+    return <svg {...common}><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z" /></svg>;
+  }
+  if (type === "save" || type === "saved") {
+    return <svg {...common} fill={type === "saved" ? "currentColor" : "none"}><path d="M6 4h12a1 1 0 0 1 1 1v15l-7-4-7 4V5a1 1 0 0 1 1-1Z" /></svg>;
+  }
+  if (type === "funny") {
+    return <svg {...common}><circle cx="12" cy="12" r="9" /><path d="M8 14h8" /><path d="M9 9h.01M15 9h.01" /></svg>;
+  }
+  if (type === "sad") {
+    return <svg {...common}><circle cx="12" cy="12" r="9" /><path d="M9 15c.8-1 2-1.5 3-1.5s2.2.5 3 1.5" /><path d="M9 9h.01M15 9h.01" /></svg>;
+  }
+  if (type === "relatable") {
+    return <svg {...common}><path d="M12 21s-6.7-4.4-9-8.5C1 8.7 3.3 5 7 5c2 0 3.3 1 5 3c1.7-2 3-3 5-3c3.7 0 6 3.7 4 7.5c-2.3 4.1-9 8.5-9 8.5Z" /></svg>;
+  }
+  return <svg {...common}><path d="M12 9v4M12 17h.01" /><path d="M10.3 3.8 2.6 17a2 2 0 0 0 1.7 3h15.4a2 2 0 0 0 1.7-3L13.7 3.8a2 2 0 0 0-3.4 0Z" /></svg>;
 }

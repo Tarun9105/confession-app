@@ -1,4 +1,5 @@
 import { Manrope, Plus_Jakarta_Sans } from "next/font/google";
+import { MobileAppShell } from "@/components/mobile-app-shell";
 import { PWASupport } from "@/components/pwa-support";
 import "./globals.css";
 
@@ -30,6 +31,7 @@ export default function RootLayout({ children }) {
     <html lang="en">
       <body className={`${manrope.variable} ${plusJakartaSans.variable}`}>
         {children}
+        <MobileAppShell />
         <PWASupport />
       </body>
     </html>

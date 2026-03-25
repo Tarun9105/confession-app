@@ -152,6 +152,43 @@ textarea:focus-visible {
   box-shadow: 0 16px 28px rgba(11, 87, 208, 0.22);
 }
 
+.app-loader {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  gap: 1rem;
+  background: linear-gradient(180deg, var(--surface-1), var(--bg));
+  text-align: center;
+}
+
+.app-loader-mark {
+  width: 4.6rem;
+  height: 4.6rem;
+  display: grid;
+  place-items: center;
+  border-radius: calc(1.4rem * var(--radius-scale));
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  color: #ffffff;
+  font-family: var(--font-display), sans-serif;
+  font-size: 2rem;
+  box-shadow: var(--shadow);
+}
+
+.back-hint {
+  position: fixed;
+  left: 50%;
+  bottom: calc(6rem + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 55;
+  padding: 0.8rem 1rem;
+  border-radius: calc(999px * var(--radius-scale));
+  background: var(--card-strong);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+}
+
 .hero-card,
 .panel,
 .post-card,
@@ -177,6 +214,93 @@ textarea:focus-visible {
     linear-gradient(135deg, rgba(11, 87, 208, 0.08), transparent 38%),
     linear-gradient(225deg, rgba(52, 168, 83, 0.08), transparent 28%),
     var(--card-strong);
+}
+
+.hero-card-compact {
+  padding-bottom: 1.3rem;
+}
+
+.hero-card-compact h1 {
+  font-size: clamp(1.45rem, 3vw, 2rem);
+  max-width: 16ch;
+}
+
+.hero-card-compact .hero-copy {
+  font-size: 0.95rem;
+  max-width: 40rem;
+}
+
+:root[data-layout="twitter"] .hero-card,
+:root[data-layout="compact"] .hero-card {
+  box-shadow: none;
+  border-radius: 0;
+  border-inline: 0;
+}
+
+:root[data-layout="twitter"] .feed-grid,
+:root[data-layout="compact"] .feed-grid {
+  grid-template-columns: 1fr;
+}
+
+:root[data-layout="twitter"] .post-card,
+:root[data-layout="compact"] .post-card {
+  border-radius: 0;
+  box-shadow: none;
+  border-inline: 0;
+}
+
+:root[data-layout="instagram"] .post-card {
+  border-radius: calc(2.1rem * var(--radius-scale));
+  background: linear-gradient(180deg, var(--surface-1), color-mix(in srgb, var(--surface-2) 65%, transparent));
+}
+
+:root[data-layout="magazine"] .feed-grid {
+  grid-template-columns: 1.25fr 0.95fr;
+}
+
+:root[data-layout="magazine"] .post-card:nth-child(3n + 1) {
+  min-height: 24rem;
+}
+
+:root[data-layout="bubble"] .post-card {
+  border-radius: calc(2.6rem * var(--radius-scale));
+}
+
+:root[data-layout="glass"] .hero-card,
+:root[data-layout="glass"] .panel,
+:root[data-layout="glass"] .post-card,
+:root[data-layout="glass"] .metric-card {
+  backdrop-filter: blur(26px);
+  -webkit-backdrop-filter: blur(26px);
+  background: color-mix(in srgb, var(--surface-1) 74%, transparent);
+}
+
+:root[data-layout="neo"] .hero-card,
+:root[data-layout="neo"] .panel,
+:root[data-layout="neo"] .post-card,
+:root[data-layout="neo"] .metric-card,
+:root[data-layout="neo"] .preview-card,
+:root[data-layout="neo"] .settings-panel {
+  box-shadow: 10px 10px 0 rgba(0, 0, 0, 0.08);
+}
+
+:root[data-layout="outline"] .hero-card,
+:root[data-layout="outline"] .panel,
+:root[data-layout="outline"] .post-card,
+:root[data-layout="outline"] .metric-card,
+:root[data-layout="outline"] .preview-card,
+:root[data-layout="outline"] .settings-panel {
+  background: transparent;
+  box-shadow: none;
+  border-width: 2px;
+}
+
+:root[data-layout="softgrid"] .feed-grid {
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+:root[data-layout="softgrid"] .post-card {
+  border-radius: calc(1.2rem * var(--radius-scale));
 }
 
 .hero-card::after {
@@ -535,6 +659,13 @@ h2 {
   padding-inline: 1rem;
 }
 
+.stat-button.icon-only,
+.mini-action.icon-only {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
 .mini-action,
 .bookmark-card {
   border: 1px solid var(--line);
@@ -720,6 +851,17 @@ h2 {
   box-shadow: var(--shadow);
   z-index: 25;
   transition: transform 180ms ease, opacity 180ms ease;
+}
+
+.bottom-compose {
+  width: 3.25rem;
+  height: 3.25rem;
+  border: 0;
+  border-radius: calc(1.15rem * var(--radius-scale));
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  color: #ffffff;
+  font-size: 1.8rem;
+  box-shadow: var(--shadow);
 }
 
 :root[data-theme="dark"] .bottom-nav {

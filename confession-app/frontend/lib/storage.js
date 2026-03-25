@@ -5,6 +5,7 @@ export const UI_SETTINGS_KEY = "confesslyUiSettings";
 
 export const DEFAULT_UI_SETTINGS = {
   presetId: "blue-mist",
+  layoutMode: "balanced",
   font: "default",
   textTone: "standard",
   textScale: 1,

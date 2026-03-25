@@ -12,6 +12,19 @@ export const TEXT_TONE_PRESETS = [
   { id: "dim", label: "Dim" }
 ];
 
+export const LAYOUT_MODES = [
+  { id: "balanced", label: "Balanced" },
+  { id: "twitter", label: "Twitter Flow" },
+  { id: "instagram", label: "Instagram Cards" },
+  { id: "compact", label: "Compact Feed" },
+  { id: "magazine", label: "Magazine" },
+  { id: "bubble", label: "Bubble" },
+  { id: "glass", label: "Glass" },
+  { id: "neo", label: "Neo Panel" },
+  { id: "outline", label: "Outline" },
+  { id: "softgrid", label: "Soft Grid" }
+];
+
 const ACCENTS = [
   { id: "blue", label: "Blue", primary: "#0b57d0", strong: "#1a73e8", softLight: "rgba(11, 87, 208, 0.10)", softDark: "rgba(138, 180, 248, 0.16)" },
   { id: "indigo", label: "Indigo", primary: "#4154d8", strong: "#5c6cf0", softLight: "rgba(65, 84, 216, 0.10)", softDark: "rgba(139, 150, 255, 0.16)" },
@@ -103,6 +116,7 @@ export function applyUiSettings(settings, resolvedTheme) {
   root.style.setProperty("--text-scale", String(settings.textScale));
   root.style.setProperty("--radius-scale", String(settings.radius));
   root.dataset.font = settings.font;
+  root.dataset.layout = settings.layoutMode;
 }
 
 function getTextToneMap(theme) {

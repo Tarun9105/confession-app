@@ -3,7 +3,14 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { getSettings, updateSettings } from "@/lib/api";
-import { FONT_PRESETS, TEXT_TONE_PRESETS, THEME_PRESETS, applyUiSettings, getPresetById } from "@/lib/customization";
+import {
+  FONT_PRESETS,
+  LAYOUT_MODES,
+  TEXT_TONE_PRESETS,
+  THEME_PRESETS,
+  applyUiSettings,
+  getPresetById
+} from "@/lib/customization";
 import { DEFAULT_UI_SETTINGS, getDeviceId, getUiSettings, saveUiSettings } from "@/lib/storage";
 
 export function SettingsScreen() {
@@ -114,6 +121,21 @@ export function SettingsScreen() {
                     onClick={() => persistUiSettings({ font: preset.id })}
                   >
                     {preset.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="settings-block">
+              <p className="eyebrow">Layout mode</p>
+              <div className="settings-row">
+                {LAYOUT_MODES.map((mode) => (
+                  <button
+                    key={mode.id}
+                    className={uiSettings.layoutMode === mode.id ? "topic-chip active" : "topic-chip"}
+                    onClick={() => persistUiSettings({ layoutMode: mode.id })}
+                  >
+                    {mode.label}
                   </button>
                 ))}
               </div>
