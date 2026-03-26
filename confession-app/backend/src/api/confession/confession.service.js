@@ -4,6 +4,7 @@ import Report from './report.model.js';
 import Vote from './vote.model.js';
 import UserTracker from './userTracker.model.js';
 import { containsBadWords } from './confession.utils.js';
+import { hashDeviceId } from '../../utils/hash.utils.js';
 import AppError from '../../utils/AppError.js';
 
 const ALLOWED_TYPES = new Set(['deep', 'secret', 'funny', 'general']);
@@ -109,11 +110,19 @@ const formatConfession = (doc, userVoteMap = new Map()) => {
   obj.reactions = obj.reactions instanceof Map ? Object.fromEntries(obj.reactions) : (obj.reactions || {});
 
   if (obj.comments) {
-    obj.comments = [...obj.comments].map((comment) => ({
-      ...comment,
-      timeAgo: getTimeAgo(comment.createdAt || new Date())
-    }));
+    obj.commentCount = obj.comments.length;
+    obj.comments = [...obj.comments].map((comment) => {
+      const formatted = { ...comment };
+      formatted.timeAgo = getTimeAgo(comment.createdAt || new Date());
+      formatted.reactions = formatted.reactions instanceof Map 
+        ? Object.fromEntries(formatted.reactions) 
+        : (formatted.reactions || {});
+      return formatted;
+    });
     obj.comments.sort((a, b) => (b.likes - b.dislikes) - (a.likes - a.dislikes));
+  } else {
+    // If comments excluded by projection, we still need a commentCount fallback
+    obj.commentCount = obj.commentCount || 0;
   }
 
   obj.engagementScore = getEngagementScore(obj);
@@ -125,6 +134,7 @@ const formatConfession = (doc, userVoteMap = new Map()) => {
     obj.userReaction = vote.reactionValue || null;
   }
 
+  obj.isLegacy = !obj.authorDeviceIdHash;
   return obj;
 };
 
@@ -174,14 +184,35 @@ const applyVoteMutation = (update, type, reactionValue, delta) => {
 export const getAllConfessions = async (typeFilter, page = 1, limit = 10, deviceId = null) => {
   const safePage = Math.max(1, Number.parseInt(page, 10) || 1);
   const safeLimit = Math.min(20, Math.max(1, Number.parseInt(limit, 10) || 10));
-  const query = getPublicFilter(typeFilter ? { type: typeFilter } : {});
+  const query = getPublicFilter(typeFilter ? { type: typeFilter } : { status: 'ACTIVE' });
   const skip = (safePage - 1) * safeLimit;
+
   const confessions = await Confession.find(query)
+    .select('-comments') // Exclude full comments array
+    .addFields({ commentCount: { $size: '$comments' } }) // Store count
     .sort({ createdAt: -1 })
     .skip(skip)
     .limit(safeLimit);
+
   const voteMap = await buildVoteMap(confessions, deviceId);
   return confessions.map((confession) => formatConfession(confession, voteMap));
+};
+
+export const getConfessionComments = async (id, page = 1, limit = 20) => {
+  const safePage = Math.max(1, Number.parseInt(page, 10) || 1);
+  const safeLimit = Math.min(50, Math.max(1, Number.parseInt(limit, 10) || 20));
+  const skip = (safePage - 1) * safeLimit;
+
+  const confession = await Confession.findById(id, {
+    comments: { $slice: [skip, safeLimit] }
+  });
+
+  if (!confession) throw new AppError('Confession not found', 404);
+
+  return confession.comments.map((comment) => ({
+    ...comment.toObject(),
+    timeAgo: getTimeAgo(comment.createdAt || new Date())
+  }));
 };
 
 export const getTrendingConfessions = async (deviceId = null) => {
@@ -255,7 +286,7 @@ export const votePost = async (id, deviceId, type, reactionValue = null) => {
   return formatConfession(updated, voteMap);
 };
 
-export const reportConfession = async (id, deviceId) => {
+export const reportConfession = async (id, deviceId, reason = 'OTHER', details = '') => {
   const normalizedDeviceId = normalizeDeviceId(deviceId);
   const confession = await Confession.findById(id);
   if (!confession) throw new AppError('Confession not found', 404);
@@ -265,9 +296,15 @@ export const reportConfession = async (id, deviceId) => {
     return formatConfession(confession);
   }
 
-  await Report.create({ confessionId: id, deviceId: normalizedDeviceId });
-  confession.reports = (confession.reports || 0) + 1;
-  if (confession.reports >= VISIBLE_REPORT_THRESHOLD) {
+  await Report.create({ confessionId: id, deviceId: normalizedDeviceId, reason, details });
+  
+  // Recalculate unique reports to be certain
+  const uniqueReporters = await Report.countDocuments({ confessionId: id });
+  confession.reports = uniqueReporters;
+  
+  // Logic: auto-hide if unique reporter threshold met
+  if (uniqueReporters >= VISIBLE_REPORT_THRESHOLD) {
+    confession.status = 'HIDDEN';
     confession.isReported = true;
   }
 
@@ -290,51 +327,107 @@ export const voteComment = async (confessionId, commentId, isLike, deviceId) => 
   const normalizedDeviceId = normalizeDeviceId(deviceId);
   const type = isLike ? 'like' : 'dislike';
 
-  const confession = await Confession.findById(confessionId);
-  if (!confession) throw new AppError('Confession not found', 404);
-
-  const comment = confession.comments.id(commentId);
-  if (!comment) throw new AppError('Comment not found', 404);
-
   const existingVote = await Vote.findOne({ confessionId, commentId, deviceId: normalizedDeviceId });
+  
+  const update = { $inc: {} };
 
   if (existingVote) {
     if (existingVote.voteType === type) {
       await Vote.deleteOne({ _id: existingVote._id });
-      if (isLike) comment.likes = Math.max(0, (comment.likes || 0) - 1);
-      else comment.dislikes = Math.max(0, (comment.dislikes || 0) - 1);
+      update.$inc[`comments.$.${type === 'like' ? 'likes' : 'dislikes'}`] = -1;
     } else {
+      const oldField = existingVote.voteType === 'like' ? 'likes' : 'dislikes';
+      const newField = type === 'like' ? 'likes' : 'dislikes';
+      
+      update.$inc[`comments.$.${oldField}`] = -1;
+      update.$inc[`comments.$.${newField}`] = 1;
+      
       existingVote.voteType = type;
       await existingVote.save();
-      if (isLike) {
-        comment.likes = (comment.likes || 0) + 1;
-        comment.dislikes = Math.max(0, (comment.dislikes || 0) - 1);
-      } else {
-        comment.dislikes = (comment.dislikes || 0) + 1;
-        comment.likes = Math.max(0, (comment.likes || 0) - 1);
-      }
     }
   } else {
     await Vote.create({ confessionId, commentId, deviceId: normalizedDeviceId, voteType: type });
-    if (isLike) comment.likes = (comment.likes || 0) + 1;
-    else comment.dislikes = (comment.dislikes || 0) + 1;
+    update.$inc[`comments.$.${type === 'like' ? 'likes' : 'dislikes'}`] = 1;
   }
 
-  await confession.save();
-  return formatConfession(confession);
+  const updated = await Confession.findOneAndUpdate(
+    { _id: confessionId, 'comments._id': commentId },
+    update,
+    { new: true }
+  );
+  
+  if (!updated) throw new AppError('Confession or Comment not found', 404);
+  return formatConfession(updated);
 };
 
-export const searchConfessions = async (query, deviceId = null) => {
+export const reactComment = async (confessionId, commentId, reactionValue, deviceId) => {
+  const normalizedDeviceId = normalizeDeviceId(deviceId);
+  if (!ALLOWED_REACTIONS.has(reactionValue)) throw new AppError('Invalid reaction type', 400);
+
+  const existingVote = await Vote.findOne({ confessionId, commentId, deviceId: normalizedDeviceId });
+  const update = { $inc: {} };
+
+  if (existingVote) {
+    if (existingVote.voteType === 'like') update.$inc['comments.$.likes'] = -1;
+    if (existingVote.voteType === 'dislike') update.$inc['comments.$.dislikes'] = -1;
+    if (existingVote.voteType === 'reaction' && existingVote.reactionValue) {
+       update.$inc[`comments.$.reactions.${existingVote.reactionValue}`] = -1;
+    }
+
+    if (existingVote.voteType === 'reaction' && existingVote.reactionValue === reactionValue) {
+      await Vote.deleteOne({ _id: existingVote._id });
+    } else {
+      update.$inc[`comments.$.reactions.${reactionValue}`] = 1;
+      existingVote.voteType = 'reaction';
+      existingVote.reactionValue = reactionValue;
+      await existingVote.save();
+    }
+  } else {
+    await Vote.create({ confessionId, commentId, deviceId: normalizedDeviceId, voteType: 'reaction', reactionValue });
+    update.$inc[`comments.$.reactions.${reactionValue}`] = 1;
+  }
+
+  const updated = await Confession.findOneAndUpdate(
+    { _id: confessionId, 'comments._id': commentId },
+    update,
+    { new: true }
+  );
+
+  if (!updated) throw new AppError('Confession or Comment not found', 404);
+  return formatConfession(updated);
+};
+
+export const searchConfessions = async (query, deviceId = null, page = 1, limit = 20) => {
   const normalizedQuery = query?.trim();
   if (!normalizedQuery || normalizedQuery.length < 2) return [];
 
-  const safeQuery = normalizedQuery.slice(0, 80).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const confessions = await Confession.find({
-    ...getPublicFilter(),
-    text: { $regex: safeQuery, $options: 'i' }
+  const safePage = Math.max(1, Number.parseInt(page, 10) || 1);
+  const safeLimit = Math.min(50, Math.max(1, Number.parseInt(limit, 10) || 20));
+  const skip = (safePage - 1) * safeLimit;
+
+  // 1. Try $text search first (requires the text index we added)
+  let confessions = await Confession.find({
+    ...getPublicFilter({ status: 'ACTIVE' }),
+    $text: { $search: normalizedQuery }
+  }, {
+    score: { $meta: 'textScore' }
   })
-    .sort({ createdAt: -1 })
-    .limit(50);
+    .sort({ score: { $meta: 'textScore' }, createdAt: -1 })
+    .skip(skip)
+    .limit(safeLimit);
+
+  // 2. Fallback to regex if $text search yields nothing or for very short partial matches
+  if (confessions.length === 0) {
+    const regexQuery = normalizedQuery.slice(0, 80).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    confessions = await Confession.find({
+      ...getPublicFilter({ status: 'ACTIVE' }),
+      text: { $regex: regexQuery, $options: 'i' }
+    })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(safeLimit);
+  }
+
   const voteMap = await buildVoteMap(confessions, deviceId);
   return confessions.map((confession) => formatConfession(confession, voteMap));
 };
@@ -355,6 +448,64 @@ export const getActivity = async (postIds, deviceId = null) => {
     .limit(30);
   const voteMap = await buildVoteMap(confessions, deviceId);
   return confessions.map((confession) => formatConfession(confession, voteMap));
+};
+
+export const getMyConfessions = async (deviceId, page = 1, limit = 10) => {
+  const safePage = Math.max(1, Number.parseInt(page, 10) || 1);
+  const safeLimit = Math.min(20, Math.max(1, Number.parseInt(limit, 10) || 10));
+  const hashedId = hashDeviceId(deviceId);
+  const skip = (safePage - 1) * safeLimit;
+
+  const confessions = await Confession.find({ authorDeviceIdHash: hashedId, status: { $ne: 'DELETED' } })
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(safeLimit);
+
+  const voteMap = await buildVoteMap(confessions, deviceId);
+  return confessions.map((confession) => formatConfession(confession, voteMap));
+};
+
+export const updateConfession = async (id, deviceId, updateData) => {
+  const hashedId = hashDeviceId(deviceId);
+  const confession = await Confession.findById(id);
+
+  if (!confession) throw new AppError('Confession not found', 404);
+  if (confession.authorDeviceIdHash !== hashedId) {
+    throw new AppError('Unauthorized: You do not own this confession', 403);
+  }
+  if (!confession.authorDeviceIdHash) {
+    throw new AppError('Legacy posts cannot be edited', 403);
+  }
+  if (confession.status === 'DELETED') {
+    throw new AppError('Cannot edit a deleted confession', 400);
+  }
+
+  // Restrict updates
+  if (updateData.text) confession.text = normalizeText(updateData.text, 'Confession text', 1000);
+  if (updateData.imageUrl !== undefined) confession.imageUrl = normalizeImageUrl(updateData.imageUrl);
+  if (updateData.type) {
+    validateType(updateData.type);
+    confession.type = updateData.type;
+  }
+  if (updateData.blurred !== undefined) confession.blurred = !!updateData.blurred;
+
+  confession.editedAt = new Date();
+  await confession.save();
+  return formatConfession(confession);
+};
+
+export const deleteConfession = async (id, deviceId) => {
+  const hashedId = hashDeviceId(deviceId);
+  const confession = await Confession.findById(id);
+
+  if (!confession) throw new AppError('Confession not found', 404);
+  if (confession.authorDeviceIdHash !== hashedId) {
+    throw new AppError('Unauthorized: You do not own this confession', 403);
+  }
+
+  confession.status = 'DELETED';
+  await confession.save();
+  return { id, status: 'DELETED' };
 };
 
 export const getUniqueUserCount = async () => UserTracker.countDocuments();

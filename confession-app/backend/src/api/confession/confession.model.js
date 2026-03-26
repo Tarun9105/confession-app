@@ -3,7 +3,12 @@ import mongoose from 'mongoose';
 const commentSchema = new mongoose.Schema({
   text: { type: String, required: true, maxlength: 500 },
   likes: { type: Number, default: 0 },
-  dislikes: { type: Number, default: 0 }
+  dislikes: { type: Number, default: 0 },
+  reactions: {
+    type: Map,
+    of: Number,
+    default: () => new Map()
+  }
 }, { timestamps: true });
 
 
@@ -46,6 +51,19 @@ const confessionSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  authorDeviceIdHash: {
+    type: String,
+    index: true
+  },
+  status: {
+    type: String,
+    enum: ['ACTIVE', 'HIDDEN', 'DELETED'],
+    default: 'ACTIVE',
+    index: true
+  },
+  editedAt: {
+    type: Date
+  },
   reports: {
     type: Number,
     default: 0
@@ -54,6 +72,7 @@ const confessionSchema = new mongoose.Schema({
   timestamps: true
 });
 
+confessionSchema.index({ text: 'text' });
 confessionSchema.index({ createdAt: -1 });
 confessionSchema.index({ updatedAt: -1 });
 confessionSchema.index({ type: 1, createdAt: -1 });

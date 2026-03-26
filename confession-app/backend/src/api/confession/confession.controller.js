@@ -19,7 +19,8 @@ export const getTrending = catchAsync(async (req, res) => {
 });
 
 export const addConfession = catchAsync(async (req, res) => {
-  const confession = await confessionService.createConfession(req.body);
+  const deviceId = req.headers['x-device-id'];
+  const confession = await confessionService.createConfession(req.body, deviceId);
   res.status(201).json({ status: 'success', message: 'Confession added', data: confession });
 });
 
@@ -64,7 +65,8 @@ export const uploadImage = catchAsync(async (req, res) => {
 
 export const reportConfession = catchAsync(async (req, res) => {
   const deviceId = req.body?.deviceId || req.headers['x-device-id'];
-  const confession = await confessionService.reportConfession(req.params.id, deviceId);
+  const { reason, details } = req.body;
+  const confession = await confessionService.reportConfession(req.params.id, deviceId, reason, details);
   res.status(200).json({ status: 'success', message: 'Reported successfully', data: confession });
 });
 

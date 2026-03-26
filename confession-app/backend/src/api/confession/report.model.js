@@ -12,6 +12,16 @@ const reportSchema = new mongoose.Schema(
       required: true,
       trim: true,
       maxlength: 120
+    },
+    reason: {
+      type: String,
+      enum: ['SPAM', 'HARASSMENT', 'OFFENSIVE', 'SELF_HARM', 'OTHER'],
+      default: 'OTHER'
+    },
+    details: {
+      type: String,
+      trim: true,
+      maxlength: 200
     }
   },
   { timestamps: true }
