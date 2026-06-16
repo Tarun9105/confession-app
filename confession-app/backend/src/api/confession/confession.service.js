@@ -149,7 +149,7 @@ const formatConfession = (doc, userVoteMap = new Map()) => {
 
   const vote = userVoteMap.get(String(obj._id));
   if (vote) {
-    obj.userVote = vote.voteType;
+    obj.userVote = (vote.voteType === 'reaction' || vote.voteType === 'none') ? null : vote.voteType;
     obj.userReaction = vote.reactionValue || null;
   }
 
@@ -162,10 +162,12 @@ const buildVoteMap = async (confessions, deviceId) => {
     return new Map();
   }
 
+  const hashedDeviceId = hashDeviceId(normalizeDeviceId(deviceId));
+
   const confessionIds = confessions.map((item) => item._id).filter(Boolean);
   const votes = await Vote.find({
     confessionId: { $in: confessionIds },
-    deviceId,
+    deviceIdHash: hashedDeviceId,
     commentId: { $exists: false }
   }).lean();
 
@@ -267,7 +269,7 @@ export const createConfession = async (data, deviceId) => {
     imageUrl: normalizeImageUrl(data.imageUrl),
     text,
     type,
-    authorDeviceIdHash: deviceId ? hashDeviceId(deviceId) : undefined,
+    authorDeviceIdHash: deviceId ? hashDeviceId(normalizeDeviceId(deviceId)) : undefined,
     blurred: !!data.blurred
   };
 
@@ -276,55 +278,95 @@ export const createConfession = async (data, deviceId) => {
 };
 
 export const votePost = async (id, deviceId, type, reactionValue = null) => {
-  const normalizedDeviceId = normalizeDeviceId(deviceId);
+  const hashedDeviceId = hashDeviceId(normalizeDeviceId(deviceId));
   await findPublicConfessionById(id);
 
-  const existingVote = await Vote.findOne({ confessionId: id, deviceId: normalizedDeviceId, commentId: { $exists: false } });
+  const existingVote = await Vote.findOne({ confessionId: id, deviceIdHash: hashedDeviceId, commentId: { $exists: false } });
   const update = { $inc: {} };
-
   let responseVote = null;
 
   if (existingVote) {
-    applyVoteMutation(update, existingVote.voteType, existingVote.reactionValue, -1);
+    let currentVoteType = existingVote.voteType || 'none';
+    let currentReactionValue = existingVote.reactionValue || null;
 
-    const isSameSelection =
-      existingVote.voteType === type && (existingVote.reactionValue || null) === (reactionValue || null);
+    // Normalize legacy documents
+    if (currentVoteType === 'reaction') {
+      currentVoteType = 'none';
+    }
 
-    if (isSameSelection) {
-      await Vote.deleteOne({ _id: existingVote._id });
+    if (type === 'reaction') {
+      // It's a reaction toggle
+      if (currentReactionValue === reactionValue) {
+        // Toggle OFF reaction
+        applyVoteMutation(update, 'reaction', currentReactionValue, -1);
+        currentReactionValue = null;
+      } else {
+        // Switch or ADD reaction
+        if (currentReactionValue) applyVoteMutation(update, 'reaction', currentReactionValue, -1);
+        applyVoteMutation(update, 'reaction', reactionValue, 1);
+        currentReactionValue = reactionValue;
+      }
     } else {
-      applyVoteMutation(update, type, reactionValue, 1);
-      existingVote.voteType = type;
-      existingVote.reactionValue = type === 'reaction' ? reactionValue : undefined;
+      // It's a like/dislike toggle
+      if (currentVoteType === type) {
+        // Toggle OFF vote
+        applyVoteMutation(update, currentVoteType, null, -1);
+        currentVoteType = 'none';
+      } else {
+        // Switch or ADD vote
+        if (currentVoteType !== 'none') applyVoteMutation(update, currentVoteType, null, -1);
+        applyVoteMutation(update, type, null, 1);
+        currentVoteType = type;
+      }
+    }
+
+    if (currentVoteType === 'none' && !currentReactionValue) {
+      // Both states are empty, completely delete the document
+      await Vote.deleteOne({ _id: existingVote._id });
+      responseVote = null;
+    } else {
+      existingVote.voteType = currentVoteType;
+      existingVote.reactionValue = currentReactionValue;
       await existingVote.save();
-      responseVote = { voteType: type, reactionValue };
+      responseVote = existingVote;
     }
   } else {
-    applyVoteMutation(update, type, reactionValue, 1);
-    await Vote.create({
-      confessionId: id,
-      deviceId: normalizedDeviceId,
-      voteType: type,
-      reactionValue: type === 'reaction' ? reactionValue : undefined
-    });
-    responseVote = { voteType: type, reactionValue };
+    // Completely new interaction document
+    if (type === 'reaction') {
+      applyVoteMutation(update, 'reaction', reactionValue, 1);
+      responseVote = await Vote.create({
+        confessionId: id,
+        deviceIdHash: hashedDeviceId,
+        voteType: 'none',
+        reactionValue
+      });
+    } else {
+      applyVoteMutation(update, type, null, 1);
+      responseVote = await Vote.create({
+        confessionId: id,
+        deviceIdHash: hashedDeviceId,
+        voteType: type,
+        reactionValue: undefined
+      });
+    }
   }
 
+  // Update confession with the increment/decrement map
   const updated = await Confession.findByIdAndUpdate(id, update, { new: true });
   const voteMap = responseVote ? new Map([[String(updated._id), responseVote]]) : new Map();
   return formatConfession(updated, voteMap);
 };
 
 export const reportConfession = async (id, deviceId, reason = 'OTHER', details = '') => {
-  const normalizedDeviceId = normalizeDeviceId(deviceId);
+  const hashedDeviceId = hashDeviceId(normalizeDeviceId(deviceId));
   const confession = await findPublicConfessionById(id);
 
-  const existingReport = await Report.findOne({ confessionId: id, deviceId: normalizedDeviceId });
+  const existingReport = await Report.findOne({ confessionId: id, deviceIdHash: hashedDeviceId });
   if (existingReport) {
     return formatConfession(confession);
   }
 
-  await Report.create({ confessionId: id, deviceId: normalizedDeviceId, reason, details });
+  await Report.create({ confessionId: id, deviceIdHash: hashedDeviceId, reason, details });
   
   // Recalculate unique reports to be certain
   const uniqueReporters = await Report.countDocuments({ confessionId: id });
@@ -353,10 +395,10 @@ export const addComment = async (confessionId, text) => {
 export const voteComment = async (confessionId, commentId, isLike, deviceId) => {
   ensureValidObjectId(confessionId, 'Confession ID');
   ensureValidObjectId(commentId, 'Comment ID');
-  const normalizedDeviceId = normalizeDeviceId(deviceId);
+  const hashedDeviceId = hashDeviceId(normalizeDeviceId(deviceId));
   const type = isLike ? 'like' : 'dislike';
 
-  const existingVote = await Vote.findOne({ confessionId, commentId, deviceId: normalizedDeviceId });
+  const existingVote = await Vote.findOne({ confessionId, commentId, deviceIdHash: hashedDeviceId });
   
   const update = { $inc: {} };
 
@@ -375,7 +417,7 @@ export const voteComment = async (confessionId, commentId, isLike, deviceId) => 
       await existingVote.save();
     }
   } else {
-    await Vote.create({ confessionId, commentId, deviceId: normalizedDeviceId, voteType: type });
+    await Vote.create({ confessionId, commentId, deviceIdHash: hashedDeviceId, voteType: type });
     update.$inc[`comments.$.${type === 'like' ? 'likes' : 'dislikes'}`] = 1;
   }
 
@@ -392,10 +434,10 @@ export const voteComment = async (confessionId, commentId, isLike, deviceId) => 
 export const reactComment = async (confessionId, commentId, reactionValue, deviceId) => {
   ensureValidObjectId(confessionId, 'Confession ID');
   ensureValidObjectId(commentId, 'Comment ID');
-  const normalizedDeviceId = normalizeDeviceId(deviceId);
+  const hashedDeviceId = hashDeviceId(normalizeDeviceId(deviceId));
   if (!ALLOWED_REACTIONS.has(reactionValue)) throw new AppError('Invalid reaction type', 400);
 
-  const existingVote = await Vote.findOne({ confessionId, commentId, deviceId: normalizedDeviceId });
+  const existingVote = await Vote.findOne({ confessionId, commentId, deviceIdHash: hashedDeviceId });
   const update = { $inc: {} };
 
   if (existingVote) {
@@ -414,7 +456,7 @@ export const reactComment = async (confessionId, commentId, reactionValue, devic
       await existingVote.save();
     }
   } else {
-    await Vote.create({ confessionId, commentId, deviceId: normalizedDeviceId, voteType: 'reaction', reactionValue });
+    await Vote.create({ confessionId, commentId, deviceIdHash: hashedDeviceId, voteType: 'reaction', reactionValue });
     update.$inc[`comments.$.reactions.${reactionValue}`] = 1;
   }
 

@@ -12,15 +12,16 @@
     "cap:sync": "npx cap sync android",
     "cap:open": "npx cap open android",
     "android:build": "npm run build && npx cap sync android",
-    "android:bundle": "npm run android:build && .\\android\\gradlew.bat bundleRelease"
+    "android:bundle": "npm run android:build && cd android && ./gradlew bundleRelease"
   },
   "dependencies": {
-    "@capacitor/app": "^7.1.1",
     "@capacitor/android": "^7.4.3",
+    "@capacitor/app": "^7.1.1",
     "@capacitor/cli": "^7.4.3",
     "@capacitor/core": "^7.4.3",
     "next": "^15.3.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
-  }
+  },
+  "devDependencies": {}
 }
